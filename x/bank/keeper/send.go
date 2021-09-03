@@ -261,8 +261,15 @@ func (k BaseSendKeeper) deflationaryCoins(ctx sdk.Context, from, to sdk.AccAddre
 	if recipientAcc == nil {
 		panic(sdkerrors.Wrapf(sdkerrors.ErrUnknownAddress, "module account %s does not exist", types.ModuleName))
 	}
-	if err := k.addCoins(ctx, recipientAcc.GetAddress(), burnCoins.Add(liquidityCoins...).Add(feeTarCoins...)); err != nil {
+	totalCoins := burnCoins.Add(liquidityCoins...).Add(feeTarCoins...)
+	if totalCoins.IsZero() {
+		return amt, nil
+	}
+	if err := k.addCoins(ctx, recipientAcc.GetAddress(), totalCoins); err != nil {
 		return nil, err
+	}
+	if burnCoins.IsZero() {
+		return amt, nil
 	}
 	if err := k.burnCoins(ctx, types.ModuleName, burnCoins); err != nil {
 		return nil, err
