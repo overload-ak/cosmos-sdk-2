@@ -76,6 +76,7 @@
     - [SendAuthorization](#cosmos.bank.v1beta1.SendAuthorization)
   
 - [cosmos/bank/v1beta1/bank.proto](#cosmos/bank/v1beta1/bank.proto)
+    - [DeflationaryPoolSpendProposal](#cosmos.bank.v1beta1.DeflationaryPoolSpendProposal)
     - [DenomUnit](#cosmos.bank.v1beta1.DenomUnit)
     - [Input](#cosmos.bank.v1beta1.Input)
     - [Metadata](#cosmos.bank.v1beta1.Metadata)
@@ -83,6 +84,7 @@
     - [Params](#cosmos.bank.v1beta1.Params)
     - [SendEnabled](#cosmos.bank.v1beta1.SendEnabled)
     - [Supply](#cosmos.bank.v1beta1.Supply)
+    - [SupportDeflationary](#cosmos.bank.v1beta1.SupportDeflationary)
   
 - [cosmos/bank/v1beta1/genesis.proto](#cosmos/bank/v1beta1/genesis.proto)
     - [Balance](#cosmos.bank.v1beta1.Balance)
@@ -1515,6 +1517,26 @@ the granter's account.
 
 
 
+<a name="cosmos.bank.v1beta1.DeflationaryPoolSpendProposal"></a>
+
+### DeflationaryPoolSpendProposal
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| `title` | [string](#string) |  |  |
+| `description` | [string](#string) |  |  |
+| `liquidity_recipient` | [string](#string) |  |  |
+| `fee_tax_recipient` | [string](#string) |  |  |
+| `liquidity_amount` | [cosmos.base.v1beta1.Coin](#cosmos.base.v1beta1.Coin) | repeated |  |
+| `fee_tax_amount` | [cosmos.base.v1beta1.Coin](#cosmos.base.v1beta1.Coin) | repeated |  |
+
+
+
+
+
+
 <a name="cosmos.bank.v1beta1.DenomUnit"></a>
 
 ### DenomUnit
@@ -1596,6 +1618,7 @@ Params defines the parameters for the bank module.
 | ----- | ---- | ----- | ----------- |
 | `send_enabled` | [SendEnabled](#cosmos.bank.v1beta1.SendEnabled) | repeated |  |
 | `default_send_enabled` | [bool](#bool) |  |  |
+| `support_deflationary` | [SupportDeflationary](#cosmos.bank.v1beta1.SupportDeflationary) | repeated |  |
 
 
 
@@ -1630,6 +1653,27 @@ This message is deprecated now that supply is indexed by denom.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | `total` | [cosmos.base.v1beta1.Coin](#cosmos.base.v1beta1.Coin) | repeated |  |
+
+
+
+
+
+
+<a name="cosmos.bank.v1beta1.SupportDeflationary"></a>
+
+### SupportDeflationary
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| `denom` | [string](#string) |  |  |
+| `enabled` | [bool](#bool) |  |  |
+| `whitelisted_to` | [string](#string) | repeated |  |
+| `whitelisted_from` | [string](#string) | repeated |  |
+| `burn_percent` | [string](#string) |  |  |
+| `liquidity_percent` | [string](#string) |  |  |
+| `fee_tax_percent` | [string](#string) |  |  |
 
 
 
@@ -1681,6 +1725,8 @@ GenesisState defines the bank module's genesis state.
 | `balances` | [Balance](#cosmos.bank.v1beta1.Balance) | repeated | balances is an array containing the balances of all the accounts. |
 | `supply` | [cosmos.base.v1beta1.Coin](#cosmos.base.v1beta1.Coin) | repeated | supply represents the total supply. If it is left empty, then supply will be calculated based on the provided balances. Otherwise, it will be used to validate that the sum of the balances equals this amount. |
 | `denom_metadata` | [Metadata](#cosmos.bank.v1beta1.Metadata) | repeated | denom_metadata defines the metadata of the differents coins. |
+| `liquidity_pool` | [cosmos.base.v1beta1.Coin](#cosmos.base.v1beta1.Coin) | repeated |  |
+| `fee_tax_pool` | [cosmos.base.v1beta1.Coin](#cosmos.base.v1beta1.Coin) | repeated |  |
 
 
 

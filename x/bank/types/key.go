@@ -26,6 +26,8 @@ var (
 	BalancesPrefix      = []byte{0x02}
 	SupplyKey           = []byte{0x00}
 	DenomMetadataPrefix = []byte{0x1}
+	LiquidityPoolKey    = []byte{0x03}
+	FeeTaxPoolKey       = []byte{0x04}
 )
 
 // DenomMetadataKey returns the denomination metadata key.

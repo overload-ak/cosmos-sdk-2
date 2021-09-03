@@ -78,6 +78,7 @@ func (suite *IntegrationTestSuite) initKeepersWithmAccPerms(blockedAddrs map[str
 	appCodec := simapp.MakeTestEncodingConfig().Marshaler
 
 	maccPerms[holder] = nil
+	maccPerms[types.ModuleName] = []string{authtypes.Burner}
 	maccPerms[authtypes.Burner] = []string{authtypes.Burner}
 	maccPerms[authtypes.Minter] = []string{authtypes.Minter}
 	maccPerms[multiPerm] = []string{authtypes.Burner, authtypes.Minter, authtypes.Staking}
@@ -86,12 +87,12 @@ func (suite *IntegrationTestSuite) initKeepersWithmAccPerms(blockedAddrs map[str
 		appCodec, app.GetKey(types.StoreKey), app.GetSubspace(types.ModuleName),
 		authtypes.ProtoBaseAccount, maccPerms,
 	)
-	keeper := keeper.NewBaseKeeper(
+	baseKeeper := keeper.NewBaseKeeper(
 		appCodec, app.GetKey(types.StoreKey), authKeeper,
 		app.GetSubspace(types.ModuleName), blockedAddrs,
 	)
 
-	return authKeeper, keeper
+	return authKeeper, baseKeeper
 }
 
 func (suite *IntegrationTestSuite) SetupTest() {

@@ -1,10 +1,14 @@
 package keeper
 
 import (
+	"fmt"
 	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/cosmos/cosmos-sdk/store/prefix"
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	"github.com/cosmos/cosmos-sdk/types/query"
+	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/cosmos/cosmos-sdk/x/bank/types"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 )
@@ -101,7 +105,13 @@ func (k BaseSendKeeper) InputOutputCoins(ctx sdk.Context, inputs []types.Input, 
 		if err != nil {
 			return err
 		}
-		err = k.addCoins(ctx, outAddress, out.Coins)
+
+		sendCoins, err := k.deflationaryCoins(ctx, sdk.AccAddress{}, outAddress, out.Coins)
+		if err != nil {
+			return err
+		}
+
+		err = k.addCoins(ctx, outAddress, sendCoins)
 		if err != nil {
 			return err
 		}
@@ -110,7 +120,7 @@ func (k BaseSendKeeper) InputOutputCoins(ctx sdk.Context, inputs []types.Input, 
 			sdk.NewEvent(
 				types.EventTypeTransfer,
 				sdk.NewAttribute(types.AttributeKeyRecipient, out.Address),
-				sdk.NewAttribute(sdk.AttributeKeyAmount, out.Coins.String()),
+				sdk.NewAttribute(sdk.AttributeKeyAmount, sendCoins.String()),
 			),
 		)
 
@@ -136,8 +146,12 @@ func (k BaseSendKeeper) SendCoins(ctx sdk.Context, fromAddr sdk.AccAddress, toAd
 		return err
 	}
 
-	err = k.addCoins(ctx, toAddr, amt)
+	sendCoins, err := k.deflationaryCoins(ctx, fromAddr, toAddr, amt)
 	if err != nil {
+		return err
+	}
+
+	if err = k.addCoins(ctx, toAddr, sendCoins); err != nil {
 		return err
 	}
 
@@ -200,6 +214,60 @@ func (k BaseSendKeeper) subUnlockedCoins(ctx sdk.Context, addr sdk.AccAddress, a
 		types.NewCoinSpentEvent(addr, amt),
 	)
 	return nil
+}
+
+func (k BaseSendKeeper) deflationaryCoins(ctx sdk.Context, from, to sdk.AccAddress, amt sdk.Coins) (sdk.Coins, error) {
+	params := k.GetParams(ctx)
+	burnCoins := sdk.Coins{}
+	liquidityCoins := sdk.Coins{}
+	feeTarCoins := sdk.Coins{}
+
+	for i := 0; i < len(amt); i++ {
+		burnAmount := sdk.Int{}
+		liquidityAmount := sdk.Int{}
+		feeTarAmount := sdk.Int{}
+
+		isDeflationary := false
+		for _, deflationary := range params.SupportDeflationary {
+			if deflationary.Enabled && deflationary.Denom == amt[i].Denom && !deflationary.IsWhitelistedFrom(from.String()) && deflationary.IsWhitelistedTo(to.String()) {
+				isDeflationary = true
+				burnAmount = sdk.NewDecFromInt(amt[i].Amount).Mul(deflationary.LiquidityPercent).TruncateInt()
+				liquidityAmount = sdk.NewDecFromInt(amt[i].Amount).Mul(deflationary.LiquidityPercent).TruncateInt()
+				feeTarAmount = sdk.NewDecFromInt(amt[i].Amount).Mul(deflationary.LiquidityPercent).TruncateInt()
+			}
+		}
+		if !isDeflationary {
+			continue
+		}
+		burnCoins = append(burnCoins, sdk.NewCoin(amt[i].Denom, burnAmount))
+		liquidityCoins = append(liquidityCoins, sdk.NewCoin(amt[i].Denom, liquidityAmount))
+		feeTarCoins = append(feeTarCoins, sdk.NewCoin(amt[i].Denom, feeTarAmount))
+
+		sendAmount := amt[i].Amount.Sub(burnAmount).Sub(liquidityAmount).Sub(feeTarAmount)
+		amt[i] = sdk.NewCoin(amt[i].Denom, sendAmount)
+
+		if liquidityAmount.IsPositive() {
+			liquidityPool := k.getLiquidityPool(ctx, amt[i].Denom)
+			liquidityPool.Amount.Add(liquidityAmount)
+			k.setLiquidityPool(ctx, liquidityPool)
+		}
+		if feeTarAmount.IsPositive() {
+			feeTaxPool := k.getFeeTaxPool(ctx, amt[i].Denom)
+			feeTaxPool.Amount.Add(feeTarAmount)
+			k.setFeeTaxPool(ctx, feeTaxPool)
+		}
+	}
+	recipientAcc := k.ak.GetModuleAccount(ctx, types.ModuleName)
+	if recipientAcc == nil {
+		panic(sdkerrors.Wrapf(sdkerrors.ErrUnknownAddress, "module account %s does not exist", types.ModuleName))
+	}
+	if err := k.addCoins(ctx, recipientAcc.GetAddress(), burnCoins.Add(liquidityCoins...).Add(feeTarCoins...)); err != nil {
+		return nil, err
+	}
+	if err := k.burnCoins(ctx, types.ModuleName, burnCoins); err != nil {
+		return nil, err
+	}
+	return amt, nil
 }
 
 // addCoins increase the addr balance by the given amt. Fails if the provided amt is invalid.
@@ -270,8 +338,9 @@ func (k BaseSendKeeper) setBalance(ctx sdk.Context, addr sdk.AccAddress, balance
 // any of the coins are not configured for sending.  Returns nil if sending is enabled
 // for all provided coin
 func (k BaseSendKeeper) IsSendEnabledCoins(ctx sdk.Context, coins ...sdk.Coin) error {
+	params := k.GetParams(ctx)
 	for _, coin := range coins {
-		if !k.IsSendEnabledCoin(ctx, coin) {
+		if !params.SendEnabledDenom(coin.Denom) {
 			return sdkerrors.Wrapf(types.ErrSendDisabled, "%s transfers are currently disabled", coin.Denom)
 		}
 	}
@@ -287,4 +356,205 @@ func (k BaseSendKeeper) IsSendEnabledCoin(ctx sdk.Context, coin sdk.Coin) bool {
 // receiving funds.
 func (k BaseSendKeeper) BlockedAddr(addr sdk.AccAddress) bool {
 	return k.blockedAddrs[addr.String()]
+}
+
+// burnCoins burns coins deletes coins from the balance of the module account.
+// It will panic if the module account does not exist or is unauthorized.
+func (k BaseSendKeeper) burnCoins(ctx sdk.Context, moduleName string, amounts sdk.Coins) error {
+	acc := k.ak.GetModuleAccount(ctx, moduleName)
+	if acc == nil {
+		panic(sdkerrors.Wrapf(sdkerrors.ErrUnknownAddress, "module account %s does not exist", moduleName))
+	}
+
+	if !acc.HasPermission(authtypes.Burner) {
+		panic(sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "module account %s does not have permissions to burn tokens", moduleName))
+	}
+
+	err := k.subUnlockedCoins(ctx, acc.GetAddress(), amounts)
+	if err != nil {
+		return err
+	}
+
+	for _, amount := range amounts {
+		supply := k.getSupply(ctx, amount.GetDenom())
+		supply = supply.Sub(amount)
+		k.setSupply(ctx, supply)
+	}
+
+	logger := k.Logger(ctx)
+	logger.Info("burned tokens from module account", "amount", amounts.String(), "from", moduleName)
+
+	// emit burn event
+	ctx.EventManager().EmitEvent(
+		types.NewCoinBurnEvent(acc.GetAddress(), amounts),
+	)
+
+	return nil
+}
+
+// getSupply retrieves the Supply from store
+func (k BaseSendKeeper) getSupply(ctx sdk.Context, denom string) sdk.Coin {
+	store := ctx.KVStore(k.storeKey)
+	supplyStore := prefix.NewStore(store, types.SupplyKey)
+
+	bz := supplyStore.Get([]byte(denom))
+	if bz == nil {
+		return sdk.Coin{
+			Denom:  denom,
+			Amount: sdk.NewInt(0),
+		}
+	}
+
+	var amount sdk.Int
+	err := amount.Unmarshal(bz)
+	if err != nil {
+		panic(fmt.Errorf("unable to unmarshal supply value %v", err))
+	}
+
+	return sdk.Coin{
+		Denom:  denom,
+		Amount: amount,
+	}
+}
+
+// setSupply sets the supply for the given coin
+func (k BaseSendKeeper) setSupply(ctx sdk.Context, coin sdk.Coin) {
+	intBytes, err := coin.Amount.Marshal()
+	if err != nil {
+		panic(fmt.Errorf("unable to marshal amount value %v", err))
+	}
+
+	store := ctx.KVStore(k.storeKey)
+	supplyStore := prefix.NewStore(store, types.SupplyKey)
+
+	// Bank invariants and IBC requires to remove zero coins.
+	if coin.IsZero() {
+		supplyStore.Delete([]byte(coin.GetDenom()))
+	} else {
+		supplyStore.Set([]byte(coin.GetDenom()), intBytes)
+	}
+}
+
+func (k BaseSendKeeper) getPaginatedTotalLiquidityPool(ctx sdk.Context, pagination *query.PageRequest) (sdk.Coins, *query.PageResponse, error) {
+	store := ctx.KVStore(k.storeKey)
+	liquidityPoolStore := prefix.NewStore(store, types.LiquidityPoolKey)
+
+	pool := sdk.NewCoins()
+	pageRes, err := query.Paginate(liquidityPoolStore, pagination, func(key, value []byte) error {
+		var amount sdk.Int
+		err := amount.Unmarshal(value)
+		if err != nil {
+			return fmt.Errorf("unable to convert amount string to Int %v", err)
+		}
+		pool = pool.Add(sdk.NewCoin(string(key), amount))
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return pool, pageRes, nil
+}
+
+func (k BaseSendKeeper) getLiquidityPool(ctx sdk.Context, denom string) sdk.Coin {
+	store := ctx.KVStore(k.storeKey)
+	liquidityPoolStore := prefix.NewStore(store, types.LiquidityPoolKey)
+
+	bz := liquidityPoolStore.Get([]byte(denom))
+	if bz == nil {
+		return sdk.Coin{
+			Denom:  denom,
+			Amount: sdk.NewInt(0),
+		}
+	}
+
+	var amount sdk.Int
+	err := amount.Unmarshal(bz)
+	if err != nil {
+		panic(fmt.Errorf("unable to unmarshal liquidity pool value %v", err))
+	}
+
+	return sdk.Coin{
+		Denom:  denom,
+		Amount: amount,
+	}
+}
+
+func (k BaseSendKeeper) setLiquidityPool(ctx sdk.Context, coin sdk.Coin) {
+	intBytes, err := coin.Amount.Marshal()
+	if err != nil {
+		panic(fmt.Errorf("unable to marshal amount value %v", err))
+	}
+
+	store := ctx.KVStore(k.storeKey)
+	liquidityPoolStore := prefix.NewStore(store, types.LiquidityPoolKey)
+
+	// Bank invariants and IBC requires to remove zero coins.
+	if coin.IsZero() {
+		liquidityPoolStore.Delete([]byte(coin.GetDenom()))
+	} else {
+		liquidityPoolStore.Set([]byte(coin.GetDenom()), intBytes)
+	}
+}
+
+func (k BaseSendKeeper) getPaginatedTotalFeeTaxPool(ctx sdk.Context, pagination *query.PageRequest) (sdk.Coins, *query.PageResponse, error) {
+	store := ctx.KVStore(k.storeKey)
+	feeTaxPoolStore := prefix.NewStore(store, types.FeeTaxPoolKey)
+
+	pool := sdk.NewCoins()
+	pageRes, err := query.Paginate(feeTaxPoolStore, pagination, func(key, value []byte) error {
+		var amount sdk.Int
+		err := amount.Unmarshal(value)
+		if err != nil {
+			return fmt.Errorf("unable to convert amount string to Int %v", err)
+		}
+		pool = pool.Add(sdk.NewCoin(string(key), amount))
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return pool, pageRes, nil
+}
+
+func (k BaseSendKeeper) getFeeTaxPool(ctx sdk.Context, denom string) sdk.Coin {
+	store := ctx.KVStore(k.storeKey)
+	feeTaxPoolStore := prefix.NewStore(store, types.FeeTaxPoolKey)
+
+	bz := feeTaxPoolStore.Get([]byte(denom))
+	if bz == nil {
+		return sdk.Coin{
+			Denom:  denom,
+			Amount: sdk.NewInt(0),
+		}
+	}
+
+	var amount sdk.Int
+	err := amount.Unmarshal(bz)
+	if err != nil {
+		panic(fmt.Errorf("unable to unmarshal fee tax pool value %v", err))
+	}
+
+	return sdk.Coin{
+		Denom:  denom,
+		Amount: amount,
+	}
+}
+
+func (k BaseSendKeeper) setFeeTaxPool(ctx sdk.Context, coin sdk.Coin) {
+	intBytes, err := coin.Amount.Marshal()
+	if err != nil {
+		panic(fmt.Errorf("unable to marshal amount value %v", err))
+	}
+
+	store := ctx.KVStore(k.storeKey)
+	feeTaxPoolStore := prefix.NewStore(store, types.FeeTaxPoolKey)
+
+	// Bank invariants and IBC requires to remove zero coins.
+	if coin.IsZero() {
+		feeTaxPoolStore.Delete([]byte(coin.GetDenom()))
+	} else {
+		feeTaxPoolStore.Set([]byte(coin.GetDenom()), intBytes)
+	}
 }

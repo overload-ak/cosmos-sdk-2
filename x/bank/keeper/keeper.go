@@ -42,6 +42,8 @@ type Keeper interface {
 	DelegateCoins(ctx sdk.Context, delegatorAddr, moduleAccAddr sdk.AccAddress, amt sdk.Coins) error
 	UndelegateCoins(ctx sdk.Context, moduleAccAddr, delegatorAddr sdk.AccAddress, amt sdk.Coins) error
 
+	DistributeFromDeflationaryPool(ctx sdk.Context, liqAddr, feeTaxAddr sdk.AccAddress, liqAmount, feeTaxAmount sdk.Coins) error
+
 	types.QueryServer
 }
 
@@ -53,6 +55,39 @@ type BaseKeeper struct {
 	cdc        codec.BinaryCodec
 	storeKey   sdk.StoreKey
 	paramSpace paramtypes.Subspace
+}
+
+func (k BaseKeeper) DistributeFromDeflationaryPool(ctx sdk.Context, liqAddr, feeTaxAddr sdk.AccAddress, liqAmount, feeTaxAmount sdk.Coins) error {
+
+	for _, coin := range liqAmount {
+		liquidityPool := k.getLiquidityPool(ctx, coin.Denom)
+		liquidityPool = liquidityPool.Sub(coin)
+		if liquidityPool.IsNegative() {
+			return sdkerrors.Wrapf(
+				sdkerrors.ErrInsufficientFunds, "failed to distribute deflationary pool; liquidity pool is smaller than %s", coin,
+			)
+		}
+		k.setLiquidityPool(ctx, liquidityPool)
+	}
+	for _, coin := range feeTaxAmount {
+		feeTaxPool := k.getFeeTaxPool(ctx, coin.Denom)
+		feeTaxPool = feeTaxPool.Sub(coin)
+		if feeTaxPool.IsNegative() {
+			return sdkerrors.Wrapf(
+				sdkerrors.ErrInsufficientFunds, "failed to distribute deflationary pool; ee tax pool is smaller than %s", coin,
+			)
+		}
+		k.setFeeTaxPool(ctx, feeTaxPool)
+	}
+
+	if err := k.SendCoinsFromModuleToAccount(ctx, types.ModuleName, liqAddr, liqAmount); err != nil {
+		return err
+	}
+
+	if err := k.SendCoinsFromModuleToAccount(ctx, types.ModuleName, feeTaxAddr, feeTaxAmount); err != nil {
+		return err
+	}
+	return nil
 }
 
 // GetPaginatedTotalSupply queries for the supply, ignoring 0 coins, with a given pagination
@@ -191,27 +226,7 @@ func (k BaseKeeper) UndelegateCoins(ctx sdk.Context, moduleAccAddr, delegatorAdd
 
 // GetSupply retrieves the Supply from store
 func (k BaseKeeper) GetSupply(ctx sdk.Context, denom string) sdk.Coin {
-	store := ctx.KVStore(k.storeKey)
-	supplyStore := prefix.NewStore(store, types.SupplyKey)
-
-	bz := supplyStore.Get([]byte(denom))
-	if bz == nil {
-		return sdk.Coin{
-			Denom:  denom,
-			Amount: sdk.NewInt(0),
-		}
-	}
-
-	var amount sdk.Int
-	err := amount.Unmarshal(bz)
-	if err != nil {
-		panic(fmt.Errorf("unable to unmarshal supply value %v", err))
-	}
-
-	return sdk.Coin{
-		Denom:  denom,
-		Amount: amount,
-	}
+	return k.BaseSendKeeper.getSupply(ctx, denom)
 }
 
 // GetDenomMetaData retrieves the denomination metadata. returns the metadata and true if the denom exists,
@@ -398,53 +413,7 @@ func (k BaseKeeper) MintCoins(ctx sdk.Context, moduleName string, amounts sdk.Co
 // BurnCoins burns coins deletes coins from the balance of the module account.
 // It will panic if the module account does not exist or is unauthorized.
 func (k BaseKeeper) BurnCoins(ctx sdk.Context, moduleName string, amounts sdk.Coins) error {
-	acc := k.ak.GetModuleAccount(ctx, moduleName)
-	if acc == nil {
-		panic(sdkerrors.Wrapf(sdkerrors.ErrUnknownAddress, "module account %s does not exist", moduleName))
-	}
-
-	if !acc.HasPermission(authtypes.Burner) {
-		panic(sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "module account %s does not have permissions to burn tokens", moduleName))
-	}
-
-	err := k.subUnlockedCoins(ctx, acc.GetAddress(), amounts)
-	if err != nil {
-		return err
-	}
-
-	for _, amount := range amounts {
-		supply := k.GetSupply(ctx, amount.GetDenom())
-		supply = supply.Sub(amount)
-		k.setSupply(ctx, supply)
-	}
-
-	logger := k.Logger(ctx)
-	logger.Info("burned tokens from module account", "amount", amounts.String(), "from", moduleName)
-
-	// emit burn event
-	ctx.EventManager().EmitEvent(
-		types.NewCoinBurnEvent(acc.GetAddress(), amounts),
-	)
-
-	return nil
-}
-
-// setSupply sets the supply for the given coin
-func (k BaseKeeper) setSupply(ctx sdk.Context, coin sdk.Coin) {
-	intBytes, err := coin.Amount.Marshal()
-	if err != nil {
-		panic(fmt.Errorf("unable to marshal amount value %v", err))
-	}
-
-	store := ctx.KVStore(k.storeKey)
-	supplyStore := prefix.NewStore(store, types.SupplyKey)
-
-	// Bank invariants and IBC requires to remove zero coins.
-	if coin.IsZero() {
-		supplyStore.Delete([]byte(coin.GetDenom()))
-	} else {
-		supplyStore.Set([]byte(coin.GetDenom()), intBytes)
-	}
+	return k.BaseSendKeeper.burnCoins(ctx, moduleName, amounts)
 }
 
 // trackDelegation tracks the delegation of the given account if it is a vesting account

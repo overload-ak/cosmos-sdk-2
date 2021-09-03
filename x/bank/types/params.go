@@ -19,6 +19,8 @@ var (
 	KeySendEnabled = []byte("SendEnabled")
 	// KeyDefaultSendEnabled is store's key for the DefaultSendEnabled option
 	KeyDefaultSendEnabled = []byte("DefaultSendEnabled")
+	// KeySupportDeflationary is store's key for the SupportDeflationary option
+	KeySupportDeflationary = []byte("SupportDeflationary")
 )
 
 // ParamKeyTable for bank module.
@@ -27,10 +29,11 @@ func ParamKeyTable() paramtypes.KeyTable {
 }
 
 // NewParams creates a new parameter configuration for the bank module
-func NewParams(defaultSendEnabled bool, sendEnabledParams SendEnabledParams) Params {
+func NewParams(defaultSendEnabled bool, sendEnabledParams SendEnabledParams, supportDeflationary []*SupportDeflationary) Params {
 	return Params{
-		SendEnabled:        sendEnabledParams,
-		DefaultSendEnabled: defaultSendEnabled,
+		SendEnabled:         sendEnabledParams,
+		DefaultSendEnabled:  defaultSendEnabled,
+		SupportDeflationary: supportDeflationary,
 	}
 }
 
@@ -39,7 +42,8 @@ func DefaultParams() Params {
 	return Params{
 		SendEnabled: SendEnabledParams{},
 		// The default send enabled value allows send transfers for all coin denoms
-		DefaultSendEnabled: true,
+		DefaultSendEnabled:  true,
+		SupportDeflationary: nil,
 	}
 }
 
@@ -53,7 +57,10 @@ func (p Params) Validate() error {
 
 // String implements the Stringer interface.
 func (p Params) String() string {
-	out, _ := yaml.Marshal(p)
+	out, err := yaml.Marshal(p)
+	if err != nil {
+		panic(err)
+	}
 	return string(out)
 }
 
@@ -77,7 +84,7 @@ func (p Params) SetSendEnabledParam(denom string, sendEnabled bool) Params {
 		}
 	}
 	sendParams = append(sendParams, NewSendEnabled(denom, sendEnabled))
-	return NewParams(p.DefaultSendEnabled, sendParams)
+	return NewParams(p.DefaultSendEnabled, sendParams, p.SupportDeflationary)
 }
 
 // ParamSetPairs implements params.ParamSet
@@ -85,6 +92,7 @@ func (p *Params) ParamSetPairs() paramtypes.ParamSetPairs {
 	return paramtypes.ParamSetPairs{
 		paramtypes.NewParamSetPair(KeySendEnabled, &p.SendEnabled, validateSendEnabledParams),
 		paramtypes.NewParamSetPair(KeyDefaultSendEnabled, &p.DefaultSendEnabled, validateIsBool),
+		paramtypes.NewParamSetPair(KeySupportDeflationary, &p.SupportDeflationary, validateSupportDeflationaryParams),
 	}
 }
 
@@ -120,8 +128,11 @@ func NewSendEnabled(denom string, sendEnabled bool) *SendEnabled {
 }
 
 // String implements stringer insterface
-func (se SendEnabled) String() string {
-	out, _ := yaml.Marshal(se)
+func (m SendEnabled) String() string {
+	out, err := yaml.Marshal(m)
+	if err != nil {
+		panic(err)
+	}
 	return string(out)
 }
 
@@ -130,6 +141,9 @@ func validateSendEnabled(i interface{}) error {
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
 	}
+	if err := validateIsBool(param.Enabled); err != nil {
+		return err
+	}
 	return sdk.ValidateDenom(param.Denom)
 }
 
@@ -137,6 +151,104 @@ func validateIsBool(i interface{}) error {
 	_, ok := i.(bool)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+	return nil
+}
+
+func validateSupportDeflationaryParams(i interface{}) error {
+	params, ok := i.([]*SupportDeflationary)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+	// ensure each denom is only registered one time.
+	registered := make(map[string]bool)
+	for _, p := range params {
+		if _, exists := registered[p.Denom]; exists {
+			return fmt.Errorf("duplicate support deflationary parameter found: '%s'", p.Denom)
+		}
+		if err := validateSupportDeflationary(*p); err != nil {
+			return err
+		}
+		registered[p.Denom] = true
+	}
+	return nil
+}
+
+// String implements stringer insterface
+func (m SupportDeflationary) String() string {
+	out, err := yaml.Marshal(m)
+	if err != nil {
+		panic(err)
+	}
+	return string(out)
+}
+
+func (m SupportDeflationary) IsWhitelistedTo(addr string) bool {
+	for _, to := range m.WhitelistedTo {
+		if to == addr {
+			return true
+		}
+	}
+	return false
+}
+
+func (m SupportDeflationary) IsWhitelistedFrom(addr string) bool {
+	for _, from := range m.WhitelistedFrom {
+		if from == addr {
+			return true
+		}
+	}
+	return false
+}
+
+func validateSupportDeflationary(i interface{}) error {
+	m, ok := i.(SupportDeflationary)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+	if err := validateIsBool(m.Enabled); err != nil {
+		return err
+	}
+	if err := sdk.ValidateDenom(m.Denom); err != nil {
+		return err
+	}
+	for _, addr := range m.WhitelistedFrom {
+		_, err := sdk.AccAddressFromBech32(addr)
+		if err != nil {
+			return err
+		}
+	}
+	for _, addr := range m.WhitelistedFrom {
+		_, err := sdk.AccAddressFromBech32(addr)
+		if err != nil {
+			return err
+		}
+	}
+	if err := validateSdkDec(m.BurnPercent); err != nil {
+		return fmt.Errorf("burn percent %s", err.Error())
+	}
+	if err := validateSdkDec(m.LiquidityPercent); err != nil {
+		return fmt.Errorf("liquidity percent %s", err.Error())
+	}
+	if err := validateSdkDec(m.FeeTaxPercent); err != nil {
+		return fmt.Errorf("fee tax percent %s", err.Error())
+	}
+	return nil
+}
+
+func validateSdkDec(i interface{}) error {
+	v, ok := i.(sdk.Dec)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+	if v.IsNil() {
+		return fmt.Errorf("must be not nil")
+	}
+	if v.IsNegative() {
+		return fmt.Errorf("must be positive: %s", v)
+	}
+	if v.GT(sdk.OneDec()) {
+		return fmt.Errorf("too large: %s", v)
 	}
 	return nil
 }
