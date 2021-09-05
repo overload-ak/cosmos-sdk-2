@@ -78,7 +78,6 @@ func (suite *IntegrationTestSuite) initKeepersWithmAccPerms(blockedAddrs map[str
 	appCodec := simapp.MakeTestEncodingConfig().Marshaler
 
 	maccPerms[holder] = nil
-	maccPerms[types.ModuleName] = []string{authtypes.Burner}
 	maccPerms[authtypes.Burner] = []string{authtypes.Burner}
 	maccPerms[authtypes.Minter] = []string{authtypes.Minter}
 	maccPerms[multiPerm] = []string{authtypes.Burner, authtypes.Minter, authtypes.Staking}

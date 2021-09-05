@@ -43,7 +43,7 @@ func DefaultParams() Params {
 		SendEnabled: SendEnabledParams{},
 		// The default send enabled value allows send transfers for all coin denoms
 		DefaultSendEnabled:  true,
-		SupportDeflationary: nil,
+		SupportDeflationary: []*SupportDeflationary{},
 	}
 }
 
@@ -218,7 +218,7 @@ func validateSupportDeflationary(i interface{}) error {
 			return err
 		}
 	}
-	for _, addr := range m.WhitelistedFrom {
+	for _, addr := range m.WhitelistedTo {
 		_, err := sdk.AccAddressFromBech32(addr)
 		if err != nil {
 			return err

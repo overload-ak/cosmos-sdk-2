@@ -225,15 +225,16 @@ func (k BaseSendKeeper) deflationaryCoins(ctx sdk.Context, from, to sdk.AccAddre
 	for i := 0; i < len(amt); i++ {
 		burnAmount := sdk.Int{}
 		liquidityAmount := sdk.Int{}
-		feeTarAmount := sdk.Int{}
+		feeTaxAmount := sdk.Int{}
 
 		isDeflationary := false
 		for _, deflationary := range params.SupportDeflationary {
-			if deflationary.Enabled && deflationary.Denom == amt[i].Denom && !deflationary.IsWhitelistedFrom(from.String()) && deflationary.IsWhitelistedTo(to.String()) {
+			if deflationary.Enabled && deflationary.Denom == amt[i].Denom && !deflationary.IsWhitelistedFrom(from.String()) && !deflationary.IsWhitelistedTo(to.String()) {
 				isDeflationary = true
-				burnAmount = sdk.NewDecFromInt(amt[i].Amount).Mul(deflationary.LiquidityPercent).TruncateInt()
+				burnAmount = sdk.NewDecFromInt(amt[i].Amount).Mul(deflationary.BurnPercent).TruncateInt()
 				liquidityAmount = sdk.NewDecFromInt(amt[i].Amount).Mul(deflationary.LiquidityPercent).TruncateInt()
-				feeTarAmount = sdk.NewDecFromInt(amt[i].Amount).Mul(deflationary.LiquidityPercent).TruncateInt()
+				feeTaxAmount = sdk.NewDecFromInt(amt[i].Amount).Mul(deflationary.FeeTaxPercent).TruncateInt()
+				break
 			}
 		}
 		if !isDeflationary {
@@ -241,9 +242,9 @@ func (k BaseSendKeeper) deflationaryCoins(ctx sdk.Context, from, to sdk.AccAddre
 		}
 		burnCoins = append(burnCoins, sdk.NewCoin(amt[i].Denom, burnAmount))
 		liquidityCoins = append(liquidityCoins, sdk.NewCoin(amt[i].Denom, liquidityAmount))
-		feeTarCoins = append(feeTarCoins, sdk.NewCoin(amt[i].Denom, feeTarAmount))
+		feeTarCoins = append(feeTarCoins, sdk.NewCoin(amt[i].Denom, feeTaxAmount))
 
-		sendAmount := amt[i].Amount.Sub(burnAmount).Sub(liquidityAmount).Sub(feeTarAmount)
+		sendAmount := amt[i].Amount.Sub(burnAmount).Sub(liquidityAmount).Sub(feeTaxAmount)
 		amt[i] = sdk.NewCoin(amt[i].Denom, sendAmount)
 
 		if liquidityAmount.IsPositive() {
@@ -251,9 +252,9 @@ func (k BaseSendKeeper) deflationaryCoins(ctx sdk.Context, from, to sdk.AccAddre
 			liquidityPool.Amount.Add(liquidityAmount)
 			k.setLiquidityPool(ctx, liquidityPool)
 		}
-		if feeTarAmount.IsPositive() {
+		if feeTaxAmount.IsPositive() {
 			feeTaxPool := k.getFeeTaxPool(ctx, amt[i].Denom)
-			feeTaxPool.Amount.Add(feeTarAmount)
+			feeTaxPool.Amount.Add(feeTaxAmount)
 			k.setFeeTaxPool(ctx, feeTaxPool)
 		}
 	}

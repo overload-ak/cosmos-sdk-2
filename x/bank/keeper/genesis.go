@@ -74,7 +74,7 @@ func (k BaseKeeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 	if err != nil {
 		panic(fmt.Errorf("unable to fetch total supply %v", err))
 	}
-	totalfee, _, err := k.getPaginatedTotalFeeTaxPool(ctx, &query.PageRequest{Limit: query.MaxLimit})
+	totalFee, _, err := k.getPaginatedTotalFeeTaxPool(ctx, &query.PageRequest{Limit: query.MaxLimit})
 	if err != nil {
 		panic(fmt.Errorf("unable to fetch total supply %v", err))
 	}
@@ -84,7 +84,7 @@ func (k BaseKeeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 		k.GetAccountsBalances(ctx),
 		totalSupply,
 		totalLiq,
-		totalfee,
+		totalFee,
 		k.GetAllDenomMetaData(ctx),
 	)
 }
