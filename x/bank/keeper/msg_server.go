@@ -43,7 +43,12 @@ func (k msgServer) Send(goCtx context.Context, msg *types.MsgSend) (*types.MsgSe
 		return nil, sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "%s is not allowed to receive funds", msg.ToAddress)
 	}
 
-	if err = k.SendCoins(ctx, from, to, msg.Amount); err != nil {
+	sendCoins, err := k.DeflationaryCoins(ctx, from, to, msg.Amount)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = k.SendCoins(ctx, from, to, sendCoins); err != nil {
 		return nil, err
 	}
 

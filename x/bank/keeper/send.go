@@ -28,6 +28,8 @@ type SendKeeper interface {
 	IsSendEnabledCoins(ctx sdk.Context, coins ...sdk.Coin) error
 
 	BlockedAddr(addr sdk.AccAddress) bool
+
+	DeflationaryCoins(ctx sdk.Context, from, to sdk.AccAddress, amt sdk.Coins) (sdk.Coins, error)
 }
 
 var _ SendKeeper = (*BaseSendKeeper)(nil)
@@ -106,7 +108,7 @@ func (k BaseSendKeeper) InputOutputCoins(ctx sdk.Context, inputs []types.Input, 
 			return err
 		}
 
-		sendCoins, err := k.deflationaryCoins(ctx, sdk.AccAddress{}, outAddress, out.Coins)
+		sendCoins, err := k.DeflationaryCoins(ctx, sdk.AccAddress{}, outAddress, out.Coins)
 		if err != nil {
 			return err
 		}
@@ -146,12 +148,7 @@ func (k BaseSendKeeper) SendCoins(ctx sdk.Context, fromAddr sdk.AccAddress, toAd
 		return err
 	}
 
-	sendCoins, err := k.deflationaryCoins(ctx, fromAddr, toAddr, amt)
-	if err != nil {
-		return err
-	}
-
-	if err = k.addCoins(ctx, toAddr, sendCoins); err != nil {
+	if err = k.addCoins(ctx, toAddr, amt); err != nil {
 		return err
 	}
 
@@ -216,7 +213,7 @@ func (k BaseSendKeeper) subUnlockedCoins(ctx sdk.Context, addr sdk.AccAddress, a
 	return nil
 }
 
-func (k BaseSendKeeper) deflationaryCoins(ctx sdk.Context, from, to sdk.AccAddress, amt sdk.Coins) (sdk.Coins, error) {
+func (k BaseSendKeeper) DeflationaryCoins(ctx sdk.Context, from, to sdk.AccAddress, amt sdk.Coins) (sdk.Coins, error) {
 	params := k.GetParams(ctx)
 	burnCoins := sdk.Coins{}
 	liquidityCoins := sdk.Coins{}
