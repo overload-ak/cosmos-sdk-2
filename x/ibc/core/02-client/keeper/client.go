@@ -47,7 +47,7 @@ func (k Keeper) CreateClient(
 		telemetry.IncrCounterWithLabels(
 			[]string{"ibc", "client", "create"},
 			1,
-			[]metrics.Label{telemetry.NewLabel("client-type", clientState.ClientType())},
+			[]metrics.Label{telemetry.NewLabel("client_type", clientState.ClientType())},
 		)
 	}()
 
@@ -90,9 +90,9 @@ func (k Keeper) UpdateClient(ctx sdk.Context, clientID string, header exported.H
 			[]string{"ibc", "client", "update"},
 			1,
 			[]metrics.Label{
-				telemetry.NewLabel("client-type", clientState.ClientType()),
-				telemetry.NewLabel("client-id", clientID),
-				telemetry.NewLabel("update-type", "msg"),
+				telemetry.NewLabel("client_type", clientState.ClientType()),
+				telemetry.NewLabel("client_id", clientID),
+				telemetry.NewLabel("update_type", "msg"),
 			},
 		)
 	}()
@@ -151,8 +151,8 @@ func (k Keeper) UpgradeClient(ctx sdk.Context, clientID string, upgradedClient e
 			[]string{"ibc", "client", "upgrade"},
 			1,
 			[]metrics.Label{
-				telemetry.NewLabel("client-type", updatedClientState.ClientType()),
-				telemetry.NewLabel("client-id", clientID),
+				telemetry.NewLabel("client_type", updatedClientState.ClientType()),
+				telemetry.NewLabel("client_id", clientID),
 			},
 		)
 	}()
@@ -195,8 +195,8 @@ func (k Keeper) CheckMisbehaviourAndUpdateState(ctx sdk.Context, misbehaviour ex
 			[]string{"ibc", "client", "misbehaviour"},
 			1,
 			[]metrics.Label{
-				telemetry.NewLabel("client-type", misbehaviour.ClientType()),
-				telemetry.NewLabel("client-id", misbehaviour.GetClientID()),
+				telemetry.NewLabel("client_type", misbehaviour.ClientType()),
+				telemetry.NewLabel("client_id", misbehaviour.GetClientID()),
 			},
 		)
 	}()
