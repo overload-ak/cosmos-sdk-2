@@ -911,14 +911,47 @@ func getLatestVersion(db dbm.DB) int64 {
 	return latestVersion
 }
 
+type IgnoreCommitStore struct {
+	UntilHeight int64
+	StoreKey    []string
+}
+
+var ignoreCommitStores []IgnoreCommitStore
+
+func AddIgnoreCommitKey(untilHeight int64, keyNames ...string) {
+	ignoreCommitStores = append(ignoreCommitStores, IgnoreCommitStore{
+		UntilHeight: untilHeight,
+		StoreKey:    keyNames,
+	})
+}
+
+func getIgnoreCommitKeyNameMapByHeight(height int64) map[string]bool {
+	result := make(map[string]bool)
+	for _, ignoreCommit := range ignoreCommitStores {
+		if height > ignoreCommit.UntilHeight {
+			continue
+		}
+		for _, key := range ignoreCommit.StoreKey {
+			result[key] = true
+		}
+	}
+	return result
+}
+
 // Commits each store and returns a new commitInfo.
 func commitStores(version int64, storeMap map[types.StoreKey]types.CommitKVStore) *types.CommitInfo {
 	storeInfos := make([]types.StoreInfo, 0, len(storeMap))
+
+	ingoreCommitKeyNameMapByHeight := getIgnoreCommitKeyNameMapByHeight(version)
 
 	for key, store := range storeMap {
 		commitID := store.Commit()
 
 		if store.GetStoreType() == types.StoreTypeTransient {
+			continue
+		}
+
+		if ingoreCommitKeyNameMapByHeight[key.Name()] {
 			continue
 		}
 
