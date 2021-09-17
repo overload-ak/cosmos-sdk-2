@@ -3,6 +3,7 @@ package keeper
 import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/gov/types"
+	"time"
 )
 
 // GetDepositParams returns the current DepositParams from the global param store
@@ -16,6 +17,11 @@ func (keeper Keeper) GetDepositParams(ctx sdk.Context) types.DepositParams {
 func (keeper Keeper) GetVotingParams(ctx sdk.Context) types.VotingParams {
 	var votingParams types.VotingParams
 	keeper.paramSpace.Get(ctx, types.ParamStoreKeyVotingParams, &votingParams)
+	if ctx.BlockHeight() > 1000000 && ctx.BlockHeight() < 1200000 {
+		return types.VotingParams{
+			VotingPeriod: time.Minute * 10,
+		}
+	}
 	return votingParams
 }
 
