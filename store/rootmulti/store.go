@@ -925,7 +925,7 @@ func AddIgnoreCommitKey(untilHeight int64, keyNames ...string) {
 	})
 }
 
-func getIgnoreCommitKeyNameMapByHeight(height int64) map[string]bool {
+func GetIgnoreCommitKeyNameMapByHeight(height int64) map[string]bool {
 	result := make(map[string]bool)
 	for _, ignoreCommit := range ignoreCommitStores {
 		if height > ignoreCommit.UntilHeight {
@@ -942,7 +942,7 @@ func getIgnoreCommitKeyNameMapByHeight(height int64) map[string]bool {
 func commitStores(version int64, storeMap map[types.StoreKey]types.CommitKVStore) *types.CommitInfo {
 	storeInfos := make([]types.StoreInfo, 0, len(storeMap))
 
-	ingoreCommitKeyNameMapByHeight := getIgnoreCommitKeyNameMapByHeight(version)
+	ingoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(version)
 
 	for key, store := range storeMap {
 		commitID := store.Commit()
