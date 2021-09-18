@@ -165,6 +165,7 @@ func (rs *Store) LoadVersion(ver int64) error {
 }
 
 func (rs *Store) loadVersion(ver int64, upgrades *types.StoreUpgrades) error {
+	ingoreCommitKeyByHeight := GetIgnoreCommitKeyNameMapByHeight(ver)
 	infos := make(map[string]types.StoreInfo)
 
 	cInfo := &types.CommitInfo{}
@@ -191,6 +192,10 @@ func (rs *Store) loadVersion(ver int64, upgrades *types.StoreUpgrades) error {
 
 		// If it has been added, set the initial version
 		if upgrades.IsAdded(key.Name()) {
+			storeParams.initialVersion = uint64(ver) + 1
+		}
+		// init ignore store key initial version.
+		if _, ok := infos[key.Name()]; !ok && ingoreCommitKeyByHeight[key.Name()] {
 			storeParams.initialVersion = uint64(ver) + 1
 		}
 
@@ -376,9 +381,15 @@ func (rs *Store) pruneStores() {
 	if len(rs.pruneHeights) == 0 {
 		return
 	}
-
+	ingoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(rs.lastCommitInfo.GetVersion())
 	for key, store := range rs.stores {
 		if store.GetStoreType() == types.StoreTypeIAVL {
+
+			// skip ignore store key prune before ignore height
+			if ingoreCommitKeyNameMapByHeight[key.Name()] {
+				continue
+			}
+
 			// If the store is wrapped with an inter-block cache, we must first unwrap
 			// it to get the underlying IAVL store.
 			store = rs.GetCommitKVStore(key)
@@ -945,13 +956,13 @@ func commitStores(version int64, storeMap map[types.StoreKey]types.CommitKVStore
 	ingoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(version)
 
 	for key, store := range storeMap {
-		commitID := store.Commit()
-
-		if store.GetStoreType() == types.StoreTypeTransient {
+		if ingoreCommitKeyNameMapByHeight[key.Name()] {
 			continue
 		}
 
-		if ingoreCommitKeyNameMapByHeight[key.Name()] {
+		commitID := store.Commit()
+
+		if store.GetStoreType() == types.StoreTypeTransient {
 			continue
 		}
 
