@@ -165,7 +165,7 @@ func (rs *Store) LoadVersion(ver int64) error {
 }
 
 func (rs *Store) loadVersion(ver int64, upgrades *types.StoreUpgrades) error {
-	ingoreCommitKeyByHeight := GetIgnoreCommitKeyNameMapByHeight(ver)
+	ignoreCommitKeyByHeight := GetIgnoreCommitKeyNameMapByHeight(ver)
 	infos := make(map[string]types.StoreInfo)
 
 	cInfo := &types.CommitInfo{}
@@ -194,9 +194,10 @@ func (rs *Store) loadVersion(ver int64, upgrades *types.StoreUpgrades) error {
 		if upgrades.IsAdded(key.Name()) {
 			storeParams.initialVersion = uint64(ver) + 1
 		}
-		// init ignore store key initial version.
-		if _, ok := infos[key.Name()]; !ok && ingoreCommitKeyByHeight[key.Name()] {
-			storeParams.initialVersion = uint64(ver) + 1
+		ignoreHeight, found := ignoreCommitKeyByHeight[key.Name()]
+		// init ignore store key initial version. storeCommit initialVersion is ignoreHeight
+		if _, ok := infos[key.Name()]; !ok && found {
+			storeParams.initialVersion = uint64(ignoreHeight)
 		}
 
 		store, err := rs.loadCommitStoreFromParams(key, commitID, storeParams)
@@ -381,12 +382,12 @@ func (rs *Store) pruneStores() {
 	if len(rs.pruneHeights) == 0 {
 		return
 	}
-	ingoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(rs.lastCommitInfo.GetVersion())
+	ignoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(rs.lastCommitInfo.GetVersion())
 	for key, store := range rs.stores {
 		if store.GetStoreType() == types.StoreTypeIAVL {
 
 			// skip ignore store key prune before ignore height
-			if ingoreCommitKeyNameMapByHeight[key.Name()] {
+			if _, ok := ignoreCommitKeyNameMapByHeight[key.Name()]; ok {
 				continue
 			}
 
@@ -936,14 +937,14 @@ func AddIgnoreCommitKey(untilHeight int64, keyNames ...string) {
 	})
 }
 
-func GetIgnoreCommitKeyNameMapByHeight(height int64) map[string]bool {
-	result := make(map[string]bool)
+func GetIgnoreCommitKeyNameMapByHeight(height int64) map[string]int64 {
+	result := make(map[string]int64)
 	for _, ignoreCommit := range ignoreCommitStores {
 		if height > ignoreCommit.UntilHeight {
 			continue
 		}
 		for _, key := range ignoreCommit.StoreKey {
-			result[key] = true
+			result[key] = ignoreCommit.UntilHeight
 		}
 	}
 	return result
@@ -953,10 +954,10 @@ func GetIgnoreCommitKeyNameMapByHeight(height int64) map[string]bool {
 func commitStores(version int64, storeMap map[types.StoreKey]types.CommitKVStore) *types.CommitInfo {
 	storeInfos := make([]types.StoreInfo, 0, len(storeMap))
 
-	ingoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(version)
+	ignoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(version)
 
 	for key, store := range storeMap {
-		if ingoreCommitKeyNameMapByHeight[key.Name()] {
+		if _, ok := ignoreCommitKeyNameMapByHeight[key.Name()]; ok {
 			continue
 		}
 
