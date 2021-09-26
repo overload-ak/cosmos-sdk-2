@@ -462,10 +462,10 @@ func (k Keeper) RecvPacket(goCtx context.Context, msg *channeltypes.MsgRecvPacke
 			[]string{"tx", "msg", "ibc", msg.Type()},
 			1,
 			[]metrics.Label{
-				telemetry.NewLabel("source-port", msg.Packet.SourcePort),
-				telemetry.NewLabel("source-channel", msg.Packet.SourceChannel),
-				telemetry.NewLabel("destination-port", msg.Packet.DestinationPort),
-				telemetry.NewLabel("destination-channel", msg.Packet.DestinationChannel),
+				telemetry.NewLabel("source_port", msg.Packet.SourcePort),
+				telemetry.NewLabel("source_channel", msg.Packet.SourceChannel),
+				telemetry.NewLabel("destination_port", msg.Packet.DestinationPort),
+				telemetry.NewLabel("destination_channel", msg.Packet.DestinationChannel),
 			},
 		)
 	}()
@@ -509,11 +509,11 @@ func (k Keeper) Timeout(goCtx context.Context, msg *channeltypes.MsgTimeout) (*c
 			[]string{"ibc", "timeout", "packet"},
 			1,
 			[]metrics.Label{
-				telemetry.NewLabel("source-port", msg.Packet.SourcePort),
-				telemetry.NewLabel("source-channel", msg.Packet.SourceChannel),
-				telemetry.NewLabel("destination-port", msg.Packet.DestinationPort),
-				telemetry.NewLabel("destination-channel", msg.Packet.DestinationChannel),
-				telemetry.NewLabel("timeout-type", "height"),
+				telemetry.NewLabel("source_port", msg.Packet.SourcePort),
+				telemetry.NewLabel("source_channel", msg.Packet.SourceChannel),
+				telemetry.NewLabel("destination_port", msg.Packet.DestinationPort),
+				telemetry.NewLabel("destination_channel", msg.Packet.DestinationChannel),
+				telemetry.NewLabel("timeout_type", "height"),
 			},
 		)
 	}()
@@ -560,11 +560,11 @@ func (k Keeper) TimeoutOnClose(goCtx context.Context, msg *channeltypes.MsgTimeo
 			[]string{"ibc", "timeout", "packet"},
 			1,
 			[]metrics.Label{
-				telemetry.NewLabel("source-port", msg.Packet.SourcePort),
-				telemetry.NewLabel("source-channel", msg.Packet.SourceChannel),
-				telemetry.NewLabel("destination-port", msg.Packet.DestinationPort),
-				telemetry.NewLabel("destination-channel", msg.Packet.DestinationChannel),
-				telemetry.NewLabel("timeout-type", "channel-closed"),
+				telemetry.NewLabel("source_port", msg.Packet.SourcePort),
+				telemetry.NewLabel("source_channel", msg.Packet.SourceChannel),
+				telemetry.NewLabel("destination_port", msg.Packet.DestinationPort),
+				telemetry.NewLabel("destination_channel", msg.Packet.DestinationChannel),
+				telemetry.NewLabel("timeout_type", "channel-closed"),
 			},
 		)
 	}()
@@ -604,10 +604,10 @@ func (k Keeper) Acknowledgement(goCtx context.Context, msg *channeltypes.MsgAckn
 			[]string{"tx", "msg", "ibc", msg.Type()},
 			1,
 			[]metrics.Label{
-				telemetry.NewLabel("source-port", msg.Packet.SourcePort),
-				telemetry.NewLabel("source-channel", msg.Packet.SourceChannel),
-				telemetry.NewLabel("destination-port", msg.Packet.DestinationPort),
-				telemetry.NewLabel("destination-channel", msg.Packet.DestinationChannel),
+				telemetry.NewLabel("source_port", msg.Packet.SourcePort),
+				telemetry.NewLabel("source_channel", msg.Packet.SourceChannel),
+				telemetry.NewLabel("destination_port", msg.Packet.DestinationPort),
+				telemetry.NewLabel("destination_channel", msg.Packet.DestinationChannel),
 			},
 		)
 	}()

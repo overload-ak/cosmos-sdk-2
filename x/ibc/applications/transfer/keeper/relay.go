@@ -101,8 +101,8 @@ func (k Keeper) SendTransfer(
 	}
 
 	labels := []metrics.Label{
-		telemetry.NewLabel("destination-port", destinationPort),
-		telemetry.NewLabel("destination-channel", destinationChannel),
+		telemetry.NewLabel("destination_port", destinationPort),
+		telemetry.NewLabel("destination_channel", destinationChannel),
 	}
 
 	// NOTE: SendTransfer simply sends the denomination as it exists on its own
@@ -200,8 +200,8 @@ func (k Keeper) OnRecvPacket(ctx sdk.Context, packet channeltypes.Packet, data t
 	}
 
 	labels := []metrics.Label{
-		telemetry.NewLabel("source-port", packet.GetSourcePort()),
-		telemetry.NewLabel("source-channel", packet.GetSourceChannel()),
+		telemetry.NewLabel("source_port", packet.GetSourcePort()),
+		telemetry.NewLabel("source_channel", packet.GetSourceChannel()),
 	}
 
 	// This is the prefix that would have been prefixed to the denomination
