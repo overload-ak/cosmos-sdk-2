@@ -382,7 +382,9 @@ func (rs *Store) pruneStores() {
 	if len(rs.pruneHeights) == 0 {
 		return
 	}
-	ignoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(rs.lastCommitInfo.GetVersion())
+	// prune store height +1
+	// upgrade height 10000,   height:  9999, commit after height: 10000, prune height: 10001
+	ignoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(rs.lastCommitInfo.GetVersion() + 1)
 	for key, store := range rs.stores {
 		if store.GetStoreType() == types.StoreTypeIAVL {
 
@@ -433,11 +435,7 @@ func (rs *Store) CacheMultiStore() types.CacheMultiStore {
 // iterating at past heights.
 func (rs *Store) CacheMultiStoreWithVersion(version int64) (types.CacheMultiStore, error) {
 	cachedStores := make(map[types.StoreKey]types.CacheWrapper)
-	ignoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(version)
 	for key, store := range rs.stores {
-		if _, ok := ignoreCommitKeyNameMapByHeight[key.Name()]; ok {
-			continue
-		}
 		switch store.GetStoreType() {
 		case types.StoreTypeIAVL:
 			// If the store is wrapped with an inter-block cache, we must first unwrap
@@ -956,7 +954,7 @@ func AddIgnoreCommitKey(untilHeight int64, keyNames ...string) {
 func GetIgnoreCommitKeyNameMapByHeight(height int64) map[string]int64 {
 	result := make(map[string]int64)
 	for _, ignoreCommit := range ignoreCommitStores {
-		if height > ignoreCommit.UntilHeight {
+		if height >= ignoreCommit.UntilHeight {
 			continue
 		}
 		for _, key := range ignoreCommit.StoreKey {
