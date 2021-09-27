@@ -433,7 +433,11 @@ func (rs *Store) CacheMultiStore() types.CacheMultiStore {
 // iterating at past heights.
 func (rs *Store) CacheMultiStoreWithVersion(version int64) (types.CacheMultiStore, error) {
 	cachedStores := make(map[types.StoreKey]types.CacheWrapper)
+	ignoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(version)
 	for key, store := range rs.stores {
+		if _, ok := ignoreCommitKeyNameMapByHeight[key.Name()]; ok {
+			continue
+		}
 		switch store.GetStoreType() {
 		case types.StoreTypeIAVL:
 			// If the store is wrapped with an inter-block cache, we must first unwrap
@@ -559,10 +563,14 @@ func (rs *Store) Query(req abci.RequestQuery) abci.ResponseQuery {
 func (rs *Store) SetInitialVersion(version int64) error {
 	rs.initialVersion = version
 
+	ignoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(version)
 	// Loop through all the stores, if it's an IAVL store, then set initial
 	// version on it.
 	for key, store := range rs.stores {
 		if store.GetStoreType() == types.StoreTypeIAVL {
+			if _, ok := ignoreCommitKeyNameMapByHeight[key.Name()]; ok {
+				continue
+			}
 			// If the store is wrapped with an inter-block cache, we must first unwrap
 			// it to get the underlying IAVL store.
 			store = rs.GetCommitKVStore(key)
@@ -613,8 +621,12 @@ func (rs *Store) Snapshot(height uint64, format uint32) (<-chan io.ReadCloser, e
 		*iavl.Store
 		name string
 	}
+	ignoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(int64(height))
 	stores := []namedStore{}
 	for key := range rs.stores {
+		if _, ok := ignoreCommitKeyNameMapByHeight[key.Name()]; ok {
+			continue
+		}
 		switch store := rs.GetCommitKVStore(key).(type) {
 		case *iavl.Store:
 			stores = append(stores, namedStore{name: key.Name(), Store: store})
@@ -883,9 +895,13 @@ func (rs *Store) loadCommitStoreFromParams(key types.StoreKey, id types.CommitID
 }
 
 func (rs *Store) buildCommitInfo(version int64) *types.CommitInfo {
+	ignoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(version)
 	storeInfos := []types.StoreInfo{}
 	for key, store := range rs.stores {
 		if store.GetStoreType() == types.StoreTypeTransient {
+			continue
+		}
+		if _, ok := ignoreCommitKeyNameMapByHeight[key.Name()]; ok {
 			continue
 		}
 		storeInfos = append(storeInfos, types.StoreInfo{
