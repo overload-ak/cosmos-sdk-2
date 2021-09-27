@@ -384,7 +384,7 @@ func (rs *Store) pruneStores() {
 	}
 	// prune store height +1
 	// upgrade height 10000,   height:  9999, commit after height: 10000, prune height: 10001
-	ignoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(rs.lastCommitInfo.GetVersion() + 1)
+	ignoreCommitKeyNameMapByHeight := GetIgnoreCommitKeyNameMapByHeight(rs.lastCommitInfo.GetVersion())
 	for key, store := range rs.stores {
 		if store.GetStoreType() == types.StoreTypeIAVL {
 
