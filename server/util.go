@@ -102,7 +102,7 @@ func bindFlags(basename string, cmd *cobra.Command, v *viper.Viper) (err error) 
 // the Tendermint configuration. The Viper literal is used to read and parse
 // the application configuration. Command handlers can fetch the server Context
 // to get the Tendermint configuration or to get access to Viper.
-func InterceptConfigsPreRunHandler(cmd *cobra.Command) error {
+func InterceptConfigsPreRunHandler(cmd *cobra.Command, customAppConfigTemplate string, customAppConfig interface{}) error {
 	serverCtx := NewDefaultContext()
 
 	// Get the executable name and configure the viper instance so that environmental
@@ -123,7 +123,7 @@ func InterceptConfigsPreRunHandler(cmd *cobra.Command) error {
 	serverCtx.Viper.AutomaticEnv()
 
 	// intercept configuration files, using both Viper instances separately
-	config, err := interceptConfigs(serverCtx.Viper)
+	config, err := interceptConfigs(serverCtx.Viper, customAppConfigTemplate, customAppConfig)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func SetCmdServerContext(cmd *cobra.Command, serverCtx *Context) error {
 // configuration file. The Tendermint configuration file is parsed given a root
 // Viper object, whereas the application is parsed with the private package-aware
 // viperCfg object.
-func interceptConfigs(rootViper *viper.Viper) (*tmcfg.Config, error) {
+func interceptConfigs(rootViper *viper.Viper, customAppTemplate string, customConfig interface{}) (*tmcfg.Config, error) {
 	rootDir := rootViper.GetString(flags.FlagHome)
 	configPath := filepath.Join(rootDir, "config")
 	tmCfgFile := filepath.Join(configPath, "config.toml")
@@ -226,12 +226,22 @@ func interceptConfigs(rootViper *viper.Viper) (*tmcfg.Config, error) {
 
 	appCfgFilePath := filepath.Join(configPath, "app.toml")
 	if _, err := os.Stat(appCfgFilePath); os.IsNotExist(err) {
-		appConf, err := config.ParseConfig(rootViper)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse %s: %w", appCfgFilePath, err)
-		}
+		if customAppTemplate != "" {
+			config.SetConfigTemplate(customAppTemplate)
 
-		config.WriteConfigFile(appCfgFilePath, appConf)
+			if err = rootViper.Unmarshal(&customConfig); err != nil {
+				return nil, fmt.Errorf("failed to parse %s: %w", appCfgFilePath, err)
+			}
+
+			config.WriteConfigFile(appCfgFilePath, customConfig)
+		} else {
+			appConf, err := config.ParseConfig(rootViper)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse %s: %w", appCfgFilePath, err)
+			}
+
+			config.WriteConfigFile(appCfgFilePath, appConf)
+		}
 	}
 
 	rootViper.SetConfigType("toml")
