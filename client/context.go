@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"github.com/spf13/viper"
 	"io"
 	"os"
 
@@ -45,6 +46,7 @@ type Context struct {
 	TxConfig          TxConfig
 	AccountRetriever  AccountRetriever
 	NodeURI           string
+	Viper             *viper.Viper
 
 	// TODO: Deprecated (remove).
 	LegacyAmino *codec.LegacyAmino
@@ -212,6 +214,16 @@ func (ctx Context) WithInterfaceRegistry(interfaceRegistry codectypes.InterfaceR
 	return ctx
 }
 
+// WithViper returns the context with Viper field. This Viper instance is used to read
+// client-side config from the config file.
+func (ctx Context) WithViper(prefix string) Context {
+	v := viper.New()
+	v.SetEnvPrefix(prefix)
+	v.AutomaticEnv()
+	ctx.Viper = v
+	return ctx
+}
+
 // PrintString prints the raw string to ctx.Output if it's defined, otherwise to os.Stdout
 func (ctx Context) PrintString(str string) error {
 	return ctx.PrintBytes([]byte(str))
@@ -322,8 +334,8 @@ func GetFromFields(kr keyring.Keyring, from string, genOnly bool) (sdk.AccAddres
 	return info.GetAddress(), info.GetName(), info.GetType(), nil
 }
 
-func newKeyringFromFlags(ctx Context, backend string) (keyring.Keyring, error) {
-	if ctx.GenerateOnly {
+func NewKeyringFromBackend(ctx Context, backend string) (keyring.Keyring, error) {
+	if ctx.GenerateOnly || ctx.Simulate {
 		return keyring.New(sdk.KeyringServiceName(), keyring.BackendMemory, ctx.KeyringDir, ctx.Input, ctx.KeyringOptions...)
 	}
 
