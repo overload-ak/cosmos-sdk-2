@@ -27,6 +27,7 @@ type Context struct {
 	InterfaceRegistry codectypes.InterfaceRegistry
 	Input             io.Reader
 	Keyring           keyring.Keyring
+	KeyringOptions    []keyring.Option
 	Output            io.Writer
 	OutputFormat      string
 	Height            int64
@@ -52,6 +53,12 @@ type Context struct {
 // WithKeyring returns a copy of the context with an updated keyring.
 func (ctx Context) WithKeyring(k keyring.Keyring) Context {
 	ctx.Keyring = k
+	return ctx
+}
+
+// WithKeyringOptions returns a copy of the context with an updated keyring.
+func (ctx Context) WithKeyringOptions(opts ...keyring.Option) Context {
+	ctx.KeyringOptions = opts
 	return ctx
 }
 
@@ -317,8 +324,8 @@ func GetFromFields(kr keyring.Keyring, from string, genOnly bool) (sdk.AccAddres
 
 func newKeyringFromFlags(ctx Context, backend string) (keyring.Keyring, error) {
 	if ctx.GenerateOnly {
-		return keyring.New(sdk.KeyringServiceName(), keyring.BackendMemory, ctx.KeyringDir, ctx.Input)
+		return keyring.New(sdk.KeyringServiceName(), keyring.BackendMemory, ctx.KeyringDir, ctx.Input, ctx.KeyringOptions...)
 	}
 
-	return keyring.New(sdk.KeyringServiceName(), backend, ctx.KeyringDir, ctx.Input)
+	return keyring.New(sdk.KeyringServiceName(), backend, ctx.KeyringDir, ctx.Input, ctx.KeyringOptions...)
 }
