@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/tendermint/tendermint/libs/cli"
-	rpchttp "github.com/tendermint/tendermint/rpc/client/http"
 
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
@@ -99,6 +98,11 @@ func ReadPersistentCommandFlags(clientCtx Context, flagSet *pflag.FlagSet) (Cont
 		clientCtx = clientCtx.WithHomeDir(homeDir)
 	}
 
+	if !clientCtx.Simulate || flagSet.Changed(flags.FlagDryRun) {
+		dryRun, _ := flagSet.GetBool(flags.FlagDryRun)
+		clientCtx = clientCtx.WithSimulation(dryRun)
+	}
+
 	if clientCtx.KeyringDir == "" || flagSet.Changed(flags.FlagKeyringDir) {
 		keyringDir, _ := flagSet.GetString(flags.FlagKeyringDir)
 
@@ -134,7 +138,7 @@ func ReadPersistentCommandFlags(clientCtx Context, flagSet *pflag.FlagSet) (Cont
 		if rpcURI != "" {
 			clientCtx = clientCtx.WithNodeURI(rpcURI)
 
-			client, err := rpchttp.New(rpcURI, "/websocket")
+			client, err := NewClientFromNode(rpcURI)
 			if err != nil {
 				return clientCtx, err
 			}
@@ -189,11 +193,6 @@ func readTxCommandFlags(clientCtx Context, flagSet *pflag.FlagSet) (Context, err
 	if !clientCtx.GenerateOnly || flagSet.Changed(flags.FlagGenerateOnly) {
 		genOnly, _ := flagSet.GetBool(flags.FlagGenerateOnly)
 		clientCtx = clientCtx.WithGenerateOnly(genOnly)
-	}
-
-	if !clientCtx.Simulate || flagSet.Changed(flags.FlagDryRun) {
-		dryRun, _ := flagSet.GetBool(flags.FlagDryRun)
-		clientCtx = clientCtx.WithSimulation(dryRun)
 	}
 
 	if !clientCtx.Offline || flagSet.Changed(flags.FlagOffline) {
