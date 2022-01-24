@@ -237,6 +237,20 @@ func (s *coinTestSuite) TestCoinIsZero() {
 	s.Require().False(res)
 }
 
+func (s *coinTestSuite) TestCoinIsNil() {
+	coin := sdk.Coin{}
+	res := coin.IsNil()
+	s.Require().True(res)
+
+	coin = sdk.Coin{Denom: "uatom"}
+	res = coin.IsNil()
+	s.Require().True(res)
+
+	coin = sdk.NewInt64Coin(testDenom1, 1)
+	res = coin.IsNil()
+	s.Require().False(res)
+}
+
 func (s *coinTestSuite) TestFilteredZeroCoins() {
 	cases := []struct {
 		name     string

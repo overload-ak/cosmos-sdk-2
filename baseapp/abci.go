@@ -173,6 +173,8 @@ func (app *BaseApp) BeginBlock(req abci.RequestBeginBlock) (res abci.ResponseBeg
 		gasMeter = sdk.NewInfiniteGasMeter()
 	}
 
+	// NOTE: header hash is not set in NewContext, so we manually set it here
+
 	app.deliverState.ctx = app.deliverState.ctx.
 		WithBlockGasMeter(gasMeter).
 		WithHeaderHash(req.Hash)
