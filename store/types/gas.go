@@ -98,7 +98,6 @@ func (g *basicGasMeter) ConsumeGas(amount Gas, descriptor string) {
 	if g.consumed > g.limit {
 		panic(ErrorOutOfGas{descriptor})
 	}
-
 }
 
 // RefundGas will deduct the given amount from the gas consumed. If the amount is greater than the
@@ -150,6 +149,15 @@ func (g *infiniteGasMeter) Limit() Gas {
 	return 0
 }
 
+func (g *infiniteGasMeter) ConsumeGas(amount Gas, descriptor string) {
+	var overflow bool
+	// TODO: Should we set the consumed field after overflow checking?
+	g.consumed, overflow = addUint64Overflow(g.consumed, amount)
+	if overflow {
+		panic(ErrorGasOverflow{descriptor})
+	}
+}
+
 // RefundGas will deduct the given amount from the gas consumed. If the amount is greater than the
 // gas consumed, the function will panic.
 //
@@ -162,15 +170,6 @@ func (g *infiniteGasMeter) RefundGas(amount Gas, descriptor string) {
 	}
 
 	g.consumed -= amount
-}
-
-func (g *infiniteGasMeter) ConsumeGas(amount Gas, descriptor string) {
-	var overflow bool
-	// TODO: Should we set the consumed field after overflow checking?
-	g.consumed, overflow = addUint64Overflow(g.consumed, amount)
-	if overflow {
-		panic(ErrorGasOverflow{descriptor})
-	}
 }
 
 func (g *infiniteGasMeter) IsPastLimit() bool {
