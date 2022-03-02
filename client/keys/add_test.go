@@ -1,8 +1,11 @@
 package keys
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/simapp"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -114,6 +117,96 @@ func Test_runAddCmdBasic(t *testing.T) {
 	// passwords don't match and fail interactive key generation
 	mockIn.Reset("\n" + password + "\n" + "fail" + "\n")
 	require.Error(t, cmd.ExecuteContext(ctx))
+}
+
+func Test_runAddCmdDryRun(t *testing.T) {
+
+	testData := []struct {
+		name  string
+		args  []string
+		added bool
+	}{
+		{
+			name: "account is added",
+			args: []string{
+				"testkey",
+				fmt.Sprintf("--%s=%s", flags.FlagDryRun, "false"),
+			},
+			added: true,
+		},
+		{
+			name: "account is not added with dry run",
+			args: []string{
+				"testkey",
+				fmt.Sprintf("--%s=%s", flags.FlagDryRun, "true"),
+			},
+			added: false,
+		},
+		{
+			name: "multisig account is added",
+			args: []string{
+				"testkey",
+				fmt.Sprintf("--%s=%s", flags.FlagDryRun, "false"),
+				fmt.Sprintf("--%s=%s", flagMultisig, "subkey"),
+			},
+			added: true,
+		},
+		{
+			name: "multisig account is not added with dry run",
+			args: []string{
+				"testkey",
+				fmt.Sprintf("--%s=%s", flags.FlagDryRun, "true"),
+				fmt.Sprintf("--%s=%s", flagMultisig, "subkey"),
+			},
+			added: false,
+		},
+	}
+	for _, tt := range testData {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := AddKeyCommand()
+			cmd.Flags().AddFlagSet(Commands("home").PersistentFlags())
+
+			kbHome := t.TempDir()
+			mockIn := testutil.ApplyMockIODiscardOutErr(cmd)
+			kb, err := keyring.New(sdk.KeyringServiceName(), keyring.BackendTest, kbHome, mockIn)
+			require.NoError(t, err)
+
+			appCodec := simapp.MakeTestEncodingConfig().Marshaler
+			clientCtx := client.Context{}.
+				WithJSONCodec(appCodec).
+				WithKeyringDir(kbHome).
+				WithKeyring(kb)
+			ctx := context.WithValue(context.Background(), client.ClientContextKey, &clientCtx)
+
+			path := sdk.GetConfig().GetFullBIP44Path()
+			_, err = kb.NewAccount("subkey", testutil.TestMnemonic, "", path, hd.Secp256k1)
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				_ = kb.Delete("subkey")
+			})
+
+			b := bytes.NewBufferString("")
+			cmd.SetOut(b)
+
+			cmd.SetArgs(tt.args)
+			require.NoError(t, cmd.ExecuteContext(ctx))
+
+			if tt.added {
+				_, err = kb.Key("testkey")
+				require.NoError(t, err)
+
+				out, err := ioutil.ReadAll(b)
+				require.NoError(t, err)
+				require.Contains(t, string(out), "name: testkey")
+			} else {
+				_, err = kb.Key("testkey")
+				require.Error(t, err)
+				require.Equal(t, "testkey.info: key not found", err.Error())
+			}
+		})
+	}
 }
 
 func TestAddRecoverFileBackend(t *testing.T) {
