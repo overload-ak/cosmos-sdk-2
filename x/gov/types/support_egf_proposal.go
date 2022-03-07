@@ -41,18 +41,18 @@ func validateEGFPDepositParams(i interface{}) error {
 	return nil
 }
 
-var EGFProposalSupportBlock = int64(0)
+var SupportEGFProposalBlock = int64(0)
 
 func SetEGFProposalSupportBlock(blockHeight int64) {
-	EGFProposalSupportBlock = blockHeight
+	SupportEGFProposalBlock = blockHeight
 }
 
 func getEGFProposalSupportBlock() int64 {
-	return EGFProposalSupportBlock
+	return SupportEGFProposalBlock
 }
 
 func SupportEGFProposal(ctx sdk.Context, proposalType string) bool {
-	if EGFProposalSupportBlock > 0 && ctx.BlockHeight() >= getEGFProposalSupportBlock() && ProposalTypeCommunityPoolSpend == proposalType {
+	if SupportEGFProposalBlock > 0 && ctx.BlockHeight() >= getEGFProposalSupportBlock() && ProposalTypeCommunityPoolSpend == proposalType {
 		return true
 	}
 	return false

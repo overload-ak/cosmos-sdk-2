@@ -6,14 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"math/rand"
 
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-
 	"github.com/gorilla/mux"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spf13/cobra"
-
 	abci "github.com/tendermint/tendermint/abci/types"
 
 	"github.com/cosmos/cosmos-sdk/client"
@@ -179,16 +176,7 @@ func (am AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.Raw
 }
 
 // BeginBlock SetEGFDepositParams
-func (am AppModule) BeginBlock(ctx sdk.Context, _ abci.RequestBeginBlock) {
-	// minimum collateral amount for initializing EGF proposals
-	if ctx.BlockHeight() == types.EGFProposalSupportBlock {
-		am.keeper.SetEGFDepositParams(ctx, types.EGFDepositParams{
-			InitialDeposit:           sdk.NewCoins(sdk.NewCoin(types.DefaultDepositDenom, sdk.NewInt(types.InitialDeposit).Mul(sdk.NewIntFromBigInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))))),
-			ClaimRatio:               sdk.MustNewDecFromStr(types.ClaimRatio),
-			DepositProposalThreshold: sdk.NewCoins(sdk.NewCoin(types.DefaultDepositDenom, sdk.NewInt(types.EGFDepositProposalThreshold).Mul(sdk.NewIntFromBigInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))))),
-		})
-	}
-}
+func (am AppModule) BeginBlock(ctx sdk.Context, _ abci.RequestBeginBlock) {}
 
 // EndBlock returns the end blocker for the gov module. It returns no validator
 // updates.
