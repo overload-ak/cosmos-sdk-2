@@ -6,6 +6,7 @@ import (
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	types2 "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"github.com/cosmos/cosmos-sdk/x/gov/types"
+	"math/big"
 )
 
 // GetDeposit gets the deposit of a specific depositor on a specific proposal
@@ -142,7 +143,7 @@ func (keeper Keeper) AddDeposit(ctx sdk.Context, proposalID uint64, depositorAdd
 		if !ok {
 			return false, sdkerrors.Wrapf(types.ErrInvalidProposalType, "%d", proposalID)
 		}
-		totDepositProposal := keeper.SupportEGFProposalTotDepositProposal(ctx, first, cpsp.Amount)
+		totDepositProposal := keeper.SupportEGFTotalDepositProposal(ctx, first, cpsp.Amount)
 		if proposal.Status == types.StatusDepositPeriod && proposal.TotalDeposit.IsAllGTE(totDepositProposal) {
 			keeper.ActivateVotingPeriod(ctx, proposal)
 			activatedVotingPeriod = true
@@ -197,7 +198,15 @@ func (keeper Keeper) RefundDeposits(ctx sdk.Context, proposalID uint64) {
 	})
 }
 
-func (keeper Keeper) SupportEGFProposalTotDepositProposal(ctx sdk.Context, first bool, claimCoin sdk.Coins) sdk.Coins {
+func (keeper Keeper) SupportEGFTotalDepositProposal(ctx sdk.Context, first bool, claimCoin sdk.Coins) sdk.Coins {
+	// minimum collateral amount for initializing EGF proposals
+	if ctx.BlockHeight() == types.SupportEGFProposalBlock {
+		keeper.SetEGFDepositParams(ctx, types.EGFDepositParams{
+			InitialDeposit:           sdk.NewCoins(sdk.NewCoin(types.DefaultDepositDenom, sdk.NewInt(types.InitialDeposit).Mul(sdk.NewIntFromBigInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))))),
+			ClaimRatio:               sdk.MustNewDecFromStr(types.ClaimRatio),
+			DepositProposalThreshold: sdk.NewCoins(sdk.NewCoin(types.DefaultDepositDenom, sdk.NewInt(types.EGFDepositProposalThreshold).Mul(sdk.NewIntFromBigInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))))),
+		})
+	}
 	egfDepositParams := keeper.GetEGFDepositParams(ctx)
 	if claimCoin.IsAllLTE(egfDepositParams.DepositProposalThreshold) && first {
 		return egfDepositParams.InitialDeposit
